@@ -228,6 +228,12 @@ function SB:OnEnable()
 	self:build_database()
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 
+	-- Hook the game tooltip to inject guild blacklist warnings directly.
+	-- This is independent of the scan system and fires on every tooltip display.
+	GameTooltip:HookScript("OnTooltipSetUnit", function(tooltip)
+		self:inject_guild_tooltip(tooltip)
+	end)
+
 	-- Welcome message if requested
 	if conf.welcome_message then
 		self:Print('Welcome to version ' .. tostring(version))
@@ -512,6 +518,30 @@ end
 --=========================================================================================
 -- Guild blacklist functionality.
 --=========================================================================================
+function SB:inject_guild_tooltip(tooltip)
+	-- Injects a guild blacklist warning directly into the game tooltip.
+	-- Fires on every tooltip display independently of the scan system.
+	if not self:get_opts_db().guild_blacklist_enabled then return end
+
+	local _, unit = tooltip:GetUnit()
+	if not unit or not UnitIsPlayer(unit) then return end
+	if UnitIsUnit("player", unit) then return end
+
+	local guild = GetGuildInfo(unit)
+	if not guild then return end
+
+	local entry = self.provider_guild_table[guild] or self.db.realm.guild_blacklist[guild]
+	if not entry then return end
+
+	tooltip:AddLine(" ")
+	tooltip:AddLine("|cffff0000[!] BLACKLISTED GUILD: <" .. guild .. ">|r")
+	tooltip:AddLine("|cffffff00Reason: " .. entry.reason .. "|r")
+	if entry.added then
+		tooltip:AddLine("|cffaaaaaa(Added: " .. entry.added .. ")|r")
+	end
+	tooltip:Show()
+end
+
 function SB:check_unit_guild(unit_token)
 	-- Checks the given unit's guild against both the provider guild table
 	-- (distributed via addon updates) and the user's personal guild blacklist
