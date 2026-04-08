@@ -21,15 +21,15 @@ Guild blacklisting is realm-scoped by design. A guild blacklisted on Spineshatte
 ### `core.lua`
 
 **New: `inject_guild_tooltip(tooltip)`**
-Hooked into `GameTooltip:OnTooltipSetUnit` on addon load. Fires on every unit tooltip display, completely independent of the scan system and scan toggle settings. If the unit's guild matches any blacklisted guild, injects three lines into the tooltip:
+Hooked into `GameTooltip:OnTooltipSetUnit` on addon load. Fires on every unit tooltip display, completely independent of the scan system and scan toggle settings. If the unit's guild matches any blacklisted guild, injects into the tooltip:
 - Red header: `[!] BLACKLISTED GUILD: <GuildName>`
-- Yellow reason line
-- Grey added date
+- Yellow description line
+- Clickable `[Evidence]` URL link if one is provided
 
 This is the primary user-facing warning that players will see.
 
 **New: `process_guild_data(l)`**
-Called during `build_database` for every registered provider. Reads the `guild_data` field from the provider table and loads matching realm entries into `self.provider_guild_table` (in-memory only, rebuilt on every load). Realm scoping is enforced here: only entries whose realm key matches `self.realm_name` are loaded.
+Called during `build_database` for every registered provider. Reads the `guild_data` field from the provider table and loads matching realm entries into `self.provider_guild_table` (in-memory only, rebuilt on every load). Realm scoping is enforced here: only entries whose realm key matches `self.realm_name` are loaded. Entry format uses numeric indices with `guild`, `description`, and `url` fields, consistent with the existing `case_table` format.
 
 **New: `check_unit_guild(unit_token)`**
 Checks a unit's guild against two sources:
@@ -39,7 +39,7 @@ Checks a unit's guild against two sources:
 Provider entries take priority if the same guild name appears in both. Respects the same alert lockout period as player alerts to avoid spam. This drives the secondary active chat alert on target, trade, and group scans.
 
 **New: `raise_guild_alert(unit_token, guild, entry)`**
-Fires the chat message and sound alert for a guild hit on active scans. Uses the same `use_system_alert` and `use_alert_sound` settings as player alerts.
+Fires the chat message and sound alert for a guild hit on active scans. Prints the description and a clickable URL if present. Uses the same `use_system_alert` and `use_alert_sound` settings as player alerts.
 
 **Updated: `OnEnable()`**
 Registers the `GameTooltip:HookScript("OnTooltipSetUnit")` once on addon load.
@@ -88,12 +88,12 @@ Because provider entries are in-memory only, removing a guild from `list.lua` ta
 ## Slash Command Reference
 
 ```
-/sbguild add <GuildName> | <Reason>    Add a guild to your personal blacklist
-/sbguild remove <GuildName>            Remove a guild from your personal blacklist
-/sbguild list                          Show all blacklisted guilds (both sources, labelled)
-/sbguild on                            Enable guild blacklisting
-/sbguild off                           Disable guild blacklisting
-/sbguild                               Show help and current status
+/sbguild add <GuildName> | <Description>    Add a guild to your personal blacklist
+/sbguild remove <GuildName>                 Remove a guild from your personal blacklist
+/sbguild list                               Show all blacklisted guilds (both sources, labelled)
+/sbguild on                                 Enable guild blacklisting
+/sbguild off                                Disable guild blacklisting
+/sbguild                                    Show help and current status
 ```
 
 Examples:
@@ -104,7 +104,7 @@ Examples:
 /sbguild list
 ```
 
-If no reason is provided the entry is stored with "No reason specified". Personal entries are visible in `/sbguild list` labelled as `user-added`. Provider entries are labelled with the provider name.
+If no description is provided the entry is stored with "No description specified". Personal entries are visible in `/sbguild list` labelled as `user-added`. Provider entries are labelled with the provider name.
 
 ---
 
