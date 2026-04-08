@@ -408,15 +408,18 @@ function SB:process_guild_data(l)
 	-- provider_guild_table, scoped to the current realm only.
 	-- Only guilds whose realm key matches self.realm_name are loaded,
 	-- so a guild blacklisted on Spineshatter is never active on another realm.
+	-- Entry format mirrors case_table: numeric index with guild, description, url fields.
 	if not l.guild_data then return end
 	for realm, guild_table in pairs(l.guild_data) do
 		if realm == self.realm_name then
-			for guildName, entry in pairs(guild_table) do
-				self.provider_guild_table[guildName] = {
-					reason   = entry.reason or "No reason specified",
-					added    = entry.added or "unknown",
-					provider = l.provider,
-				}
+			for _, entry in pairs(guild_table) do
+				if entry.guild then
+					self.provider_guild_table[entry.guild] = {
+						description = entry.description or "No description provided",
+						url         = entry.url or false,
+						provider    = l.provider,
+					}
+				end
 			end
 		end
 	end
@@ -535,9 +538,11 @@ function SB:inject_guild_tooltip(tooltip)
 
 	tooltip:AddLine(" ")
 	tooltip:AddLine("|cffff0000[!] BLACKLISTED GUILD: <" .. guild .. ">|r")
-	tooltip:AddLine("|cffffff00Reason: " .. entry.reason .. "|r")
-	if entry.added then
-		tooltip:AddLine("|cffaaaaaa(Added: " .. entry.added .. ")|r")
+	if entry.description then
+		tooltip:AddLine("|cffffff00" .. entry.description .. "|r")
+	end
+	if entry.url then
+		tooltip:AddLine("|cff149bfd|Hurl:" .. entry.url .. "|h[Evidence]|h|r")
 	end
 	tooltip:Show()
 end
@@ -582,11 +587,17 @@ function SB:raise_guild_alert(unit_token, guild, entry)
 	end
 
 	if conf.use_system_alert then
-		self:Print(string.format(
-			"|cffffcc00%s|r is a member of blacklisted guild |cffff0000<%s>|r\n" ..
-			"  Reason: %s\n  Added: %s",
-			name, guild, entry.reason, entry.added or "unknown"
-		))
+		local s = string.format(
+			"|cffffcc00%s|r is a member of blacklisted guild |cffff0000<%s>|r\n",
+			name, guild
+		)
+		if entry.description then
+			s = s .. "  " .. entry.description .. "\n"
+		end
+		if entry.url then
+			s = s .. "  " .. formatURL(entry.url)
+		end
+		self:Print(s)
 	end
 
 	self.db.global.n_alerts = self.db.global.n_alerts + 1
@@ -1216,16 +1227,16 @@ function SB:slashcommand_guild(input)
 		for name, entry in pairs(self.provider_guild_table) do
 			count = count + 1
 			self:Print(string.format(
-				"|cffffcc00<%s>|r  %s  |cffaaaaaa(provider: %s, added %s)|r",
-				name, entry.reason, entry.provider, entry.added or "unknown"
+				"|cffffcc00<%s>|r  %s  |cffaaaaaa(provider: %s)|r",
+				name, entry.description or "", entry.provider
 			))
 		end
 		-- User-added guilds
 		for name, entry in pairs(self.db.realm.guild_blacklist) do
 			count = count + 1
 			self:Print(string.format(
-				"|cffffcc00<%s>|r  %s  |cffaaaaaa(user-added, added %s)|r",
-				name, entry.reason, entry.added or "unknown"
+				"|cffffcc00<%s>|r  %s  |cffaaaaaa(user-added)|r",
+				name, entry.description or ""
 			))
 		end
 		if count == 0 then
@@ -1238,16 +1249,16 @@ function SB:slashcommand_guild(input)
 
 	if cmd == "add" then
 		if not rest or rest == "" then
-			self:Print("Usage: /sbguild add <GuildName> | <Reason>")
+			self:Print("Usage: /sbguild add <GuildName> | <Description>")
 			return
 		end
-		local guildName, reason = rest:match("^(.-)%s*|%s*(.+)$")
-		if not guildName or not reason then
-			guildName = trim(rest)
-			reason = "No reason specified"
+		local guildName, description = rest:match("^(.-)%s*|%s*(.+)$")
+		if not guildName or not description then
+			guildName   = trim(rest)
+			description = "No description specified"
 		else
-			guildName = trim(guildName)
-			reason    = trim(reason)
+			guildName   = trim(guildName)
+			description = trim(description)
 		end
 		if guildName == "" then
 			self:Print("Guild name cannot be empty.")
@@ -1258,10 +1269,9 @@ function SB:slashcommand_guild(input)
 			return
 		end
 		self.db.realm.guild_blacklist[guildName] = {
-			reason = reason,
-			added  = date("%Y-%m-%d"),
+			description = description,
 		}
-		self:Print("|cff00ff00Added:|r <" .. guildName .. "> - " .. reason)
+		self:Print("|cff00ff00Added:|r <" .. guildName .. "> - " .. description)
 		return
 	end
 
